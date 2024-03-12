@@ -1,0 +1,220 @@
+Program.Sub.ScreenSU.Start
+Gui.fUpdateWoSo..Create
+Gui.fUpdateWoSo..Caption("Update WO & SO")
+Gui.fUpdateWoSo..Size(4845,1950)
+Gui.fUpdateWoSo..MinX(0)
+Gui.fUpdateWoSo..MinY(0)
+Gui.fUpdateWoSo..Position(0,0)
+Gui.fUpdateWoSo..BackColor(-2147483633)
+Gui.fUpdateWoSo..MousePointer(0)
+Gui.fUpdateWoSo.chkWO.Create(CheckBox)
+Gui.fUpdateWoSo.chkWO.Size(4485,360)
+Gui.fUpdateWoSo.chkWO.Position(210,555)
+Gui.fUpdateWoSo.chkWO.Caption("Update Work Orders that contain the modified part")
+Gui.fUpdateWoSo.chkSO.Create(CheckBox)
+Gui.fUpdateWoSo.chkSO.Size(4335,360)
+Gui.fUpdateWoSo.chkSO.Position(210,135)
+Gui.fUpdateWoSo.chkSO.Caption("Update Sales Orders that contain the modified part")
+Gui.fUpdateWoSo.cmdContinue.Create(Button)
+Gui.fUpdateWoSo.cmdContinue.Size(1260,375)
+Gui.fUpdateWoSo.cmdContinue.Position(210,1005)
+Gui.fUpdateWoSo.cmdContinue.Caption("Continue")
+Gui.fUpdateWoSo.cmdContinue.FontStyle(True,False,False,False,False)
+Gui.fUpdateWoSo.cmdContinue.Event(Click,cmdContinue_Click)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+v.Global.bNoMsg.Declare(boolean,false)
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.ODBC.Connection!conx.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass)
+
+
+f.Intrinsic.Control.if(v.Caller.Hook,=,37603)
+	f.Intrinsic.Control.CallSub(UpdateWO)
+f.Intrinsic.Control.ElseIf(v.Caller.Hook,=,37604)
+	f.Intrinsic.Control.CallSub(UpdateSO)
+f.Intrinsic.Control.ElseIf(v.Caller.Hook,=,37608)
+	f.Intrinsic.Control.CallSub(CheckForm)
+f.Intrinsic.Control.Else
+	f.Intrinsic.Control.CallSub(Unload)
+f.Intrinsic.Control.EndIf
+
+Program.Sub.Main.End
+
+Program.Sub.UpdateWO.Start
+v.Local.iRowCnt.Declare(Long)
+v.Local.iCount.Declare(Long)
+V.Local.sSQL.Declare(String)
+V.Local.sReadRow.Declare(String)
+V.Local.sOldPrt.Declare(String)
+V.Local.sOldRev.Declare(String)
+v.Local.sOldLoc.Declare(String)
+v.Local.sOldPrtRev.Declare(String)
+v.Local.sFlag.Declare(String)
+
+V.Local.sNewPrt.Declare(String)
+V.Local.sNewRev.Declare(String)
+v.Local.sNewLoc.Declare(String)
+v.Local.sNewPrtRev.Declare(String)
+
+
+F.Intrinsic.BDF.Load("ForWO","AUX001")
+F.Intrinsic.BDF.ReadRowCount("ForWO",v.Local.iRowCnt)
+F.Intrinsic.Math.Sub(V.Local.iRowCnt,1,V.Local.iRowCnt)
+
+f.Intrinsic.Control.If(v.Local.iRowCnt,<,0)
+	f.Intrinsic.UI.Msgbox("No Part details have been populated onto the grid.")
+f.Intrinsic.Control.EndIf
+
+f.Intrinsic.Control.For(v.Local.icount,0,v.Local.iRowCnt,1)
+	v.Local.sReadRow.Redim(0,0)
+	
+	F.Intrinsic.BDF.ReadRow("ForWO",v.Local.icount,V.Local.sReadRow)
+	F.Intrinsic.String.Split(V.Local.sReadRow,"|~|",V.Local.sReadRow)
+	
+'	v.Local.sFlag.Set(v.Local.sReadRow(5))
+'	f.Intrinsic.Control.If(v.Local.sFlag.trim,<>,"Y")
+'		f.Intrinsic.Control.GoTo("SkipUpdate")
+'	f.Intrinsic.Control.EndIf
+	
+	v.Local.sOldPrt.Set(v.Local.sReadRow(1))
+	v.Local.sOldRev.Set(v.Local.sReadRow(2))
+	v.Local.sOldLoc.Set(v.Local.sReadRow(3))
+	f.Intrinsic.String.RPad(v.Local.sOldPrt.Trim," ",17,v.Local.sOldPrt)
+	f.Intrinsic.String.RPad(v.Local.sOldRev.Trim," ",3,v.Local.sOldRev)
+	f.Intrinsic.String.RPad(v.Local.sOldLoc.Trim," ",3,v.Local.sOldLoc)
+	f.intrinsic.String.Concat(v.Local.sOldPrt,v.Local.sOldRev,v.Local.sOldPrtRev)
+	
+	
+	v.Local.sNewPrt.Set(v.Local.sReadRow(6))
+	v.Local.sNewRev.Set(v.Local.sReadRow(7))
+	v.Local.sNewLoc.Set(v.Local.sReadRow(8))
+	f.Intrinsic.String.RPad(v.Local.sNewPrt.Trim," ",17,v.Local.sNewPrt)
+	f.Intrinsic.String.RPad(v.Local.sNewRev.Trim," ",3,v.Local.sNewRev)
+	f.Intrinsic.String.RPad(v.Local.sNewLoc.Trim," ",3,v.Local.sNewLoc)
+	f.intrinsic.String.Concat(v.Local.sNewPrt,v.Local.sNewRev,v.Local.sNewPrtRev)
+	
+	f.Intrinsic.String.build("update JOB_OPERATIONS set part = '{0}' where part = '{1}' and job + suffix in ( Select job + suffix from V_JOB_HEADER where date_closed = '1900-01-01') and job + suffix + seq not in (Select job + suffix +seq from V_JOB_DETAIL)",V.Local.sNewPrtRev,V.Local.sOldPrtRev,V.Local.sSQL)
+	f.ODBC.Connection!conx.Execute(v.Local.sSQL)
+	
+	f.Intrinsic.String.build("update JOB_HEADER set part = '{0}' where part = '{2}' and date_closed = '1900-01-01'",V.Local.sNewPrtRev,V.Local.sNewPrtRev,V.Local.sOldPrtRev,V.Local.sSQL)
+	f.ODBC.Connection!conx.Execute(v.Local.sSQL)
+	f.Intrinsic.Control.Label("SkipUpdate")
+	
+	
+f.Intrinsic.Control.Next(v.Local.icount)
+'f.Intrinsic.UI.Msgbox("Work Orders have been updated with the New Part.")
+'f.Intrinsic.Control.CallSub(Unload)
+Program.Sub.UpdateWO.End
+
+Program.Sub.UpdateSO.Start
+v.Local.iRowCnt.Declare(Long)
+v.Local.iCount.Declare(Long)
+V.Local.sSQL.Declare(String)
+V.Local.sReadRow.Declare(String)
+V.Local.sOldPrt.Declare(String)
+V.Local.sOldRev.Declare(String)
+v.Local.sOldLoc.Declare(String)
+v.Local.sOldPrtRev.Declare(String)
+v.Local.sFlag.Declare(String)
+V.Local.sNewPrt.Declare(String)
+V.Local.sNewRev.Declare(String)
+v.Local.sNewLoc.Declare(String)
+v.Local.sNewPrtRev.Declare(String)
+
+
+F.Intrinsic.BDF.Load("ForSO","AUX001")
+F.Intrinsic.BDF.ReadRowCount("ForSO",v.Local.iRowCnt)
+F.Intrinsic.Math.Sub(V.Local.iRowCnt,1,V.Local.iRowCnt)
+
+f.Intrinsic.Control.If(v.Local.iRowCnt,<,0)
+	f.Intrinsic.UI.Msgbox("No Part details have been populated onto the grid.")
+f.Intrinsic.Control.EndIf
+
+f.Intrinsic.Control.For(v.Local.icount,0,v.Local.iRowCnt,1)
+	v.Local.sReadRow.Redim(0,0)
+	F.Intrinsic.BDF.ReadRow("ForSO",v.Local.icount,V.Local.sReadRow)
+	F.Intrinsic.String.Split(V.Local.sReadRow,"|~|",V.Local.sReadRow)
+	
+'	v.Local.sFlag.Set(v.Local.sReadRow(5))
+'	f.Intrinsic.Control.If(v.Local.sFlag.trim,<>,"Y")
+'		f.Intrinsic.Control.GoTo("SkipUpdate")
+'	f.Intrinsic.Control.EndIf
+	
+	v.Local.sOldPrt.Set(v.Local.sReadRow(1))
+	v.Local.sOldRev.Set(v.Local.sReadRow(2))
+	v.Local.sOldLoc.Set(v.Local.sReadRow(3))
+	f.Intrinsic.String.RPad(v.Local.sOldPrt.Trim," ",17,v.Local.sOldPrt)
+	f.Intrinsic.String.RPad(v.Local.sOldRev.Trim," ",3,v.Local.sOldRev)
+	f.Intrinsic.String.RPad(v.Local.sOldLoc.Trim," ",3,v.Local.sOldLoc)
+	f.intrinsic.String.Concat(v.Local.sOldPrt,v.Local.sOldRev,v.Local.sOldPrtRev)
+	
+	v.Local.sNewPrt.Set(v.Local.sReadRow(6))
+	v.Local.sNewRev.Set(v.Local.sReadRow(7))
+	v.Local.sNewLoc.Set(v.Local.sReadRow(8))
+	f.Intrinsic.String.RPad(v.Local.sNewPrt.Trim," ",17,v.Local.sNewPrt)
+	f.Intrinsic.String.RPad(v.Local.sNewRev.Trim," ",3,v.Local.sNewRev)
+	f.Intrinsic.String.RPad(v.Local.sNewLoc.Trim," ",3,v.Local.sNewLoc)
+	f.intrinsic.String.Concat(v.Local.sNewPrt,v.Local.sNewRev,v.Local.sNewPrtRev)
+	
+	f.Intrinsic.String.build("update order_lines set part = '{0}' where part = '{1}' and qty_shipped = 0",V.Local.sNewPrtRev,V.Local.sOldPrtRev,V.Local.sSQL)
+	f.ODBC.Connection!conx.Execute(v.Local.sSQL)
+'	
+	f.Intrinsic.Control.Label("SkipUpdate")
+	
+'	f.Intrinsic.String.build("update JOB_HEADER set part = '{0}' AND router = '{1}' where part = '{2}' and date_closed = '1900-01-01'",V.Local.sNewPrtRev,V.Local.sNewPrtRev,V.Local.sOldPrtRev,V.Local.sSQL)
+'	f.ODBC.Connection!conx.Execute(v.Local.sSQL)
+	
+f.Intrinsic.Control.Next(v.Local.icount)
+'f.Intrinsic.UI.Msgbox("Work Orders have been updated with the New Part.")
+'f.Intrinsic.Control.CallSub(Unload)
+Program.Sub.UpdateSO.End
+
+Program.Sub.Unload.Start
+f.odbc.Connection!conx.Close
+f.Intrinsic.Control.End
+Program.Sub.Unload.End
+
+Program.Sub.CheckForm.Start
+
+
+gui.fUpdateWoSo..ControlBox(false)
+gui.fUpdateWoSo..Show
+gui.fUpdateWoSo..SetFocus
+Program.Sub.CheckForm.End
+
+Program.Sub.cmdContinue_Click.Start
+v.Local.iCheck.Declare(long)
+f.Intrinsic.Control.If(v.Screen.fUpdateWoSo!chkSO.CheckedAsBoolean,=,false,"AND",v.Screen.fUpdateWoSo!chkWO.CheckedAsBoolean,=,false)
+	Function.Intrinsic.UI.MsgBox("Do you wish to continue without updating the Work Orders or Sales Orders?", "Verify Selected Options",4, v.Local.iCheck)
+f.Intrinsic.Control.ElseIf(v.Screen.fUpdateWoSo!chkSO.CheckedAsBoolean,=,True,"AND",v.Screen.fUpdateWoSo!chkWO.CheckedAsBoolean,=,false)
+	Function.Intrinsic.UI.MsgBox("Do you wish to continue with updating only the Sales Orders and not the Work Orders?", "Verify Selected Options",4, v.Local.iCheck)
+f.Intrinsic.Control.ElseIf(v.Screen.fUpdateWoSo!chkSO.CheckedAsBoolean,=,False,"AND",v.Screen.fUpdateWoSo!chkWO.CheckedAsBoolean,=,True)
+	Function.Intrinsic.UI.MsgBox("Do you wish to continue with updating only the Work Orders and not the Sales Orders?", "Verify Selected Options",4, v.Local.iCheck)
+f.Intrinsic.Control.ElseIf(v.Screen.fUpdateWoSo!chkSO.CheckedAsBoolean,=,True,"AND",v.Screen.fUpdateWoSo!chkWO.CheckedAsBoolean,=,True)
+	Function.Intrinsic.UI.MsgBox("Do you wish to continue with updating both the Work Orders and Sales Orders?", "Verify Selected Options",4, v.Local.iCheck)
+f.Intrinsic.Control.EndIf
+
+f.Intrinsic.Control.If(v.Local.iCheck,=,6)
+	f.Intrinsic.Control.CallSub(CallEmSubs)
+f.Intrinsic.Control.Else
+	f.Intrinsic.Control.CallSub(CheckForm)
+	f.Intrinsic.Control.ExitSub
+f.Intrinsic.Control.EndIf
+
+Program.Sub.cmdContinue_Click.End
+
+Program.Sub.CallEmSubs.Start
+gui.fUpdateWoSo..Visible(false)
+
+f.intrinsic.Control.If(v.Screen.fUpdateWoSo!chkWO.CheckedAsBoolean,=,true)
+	f.Intrinsic.Control.CallSub(UpdateWO)
+f.Intrinsic.Control.EndIf
+f.intrinsic.Control.If(v.Screen.fUpdateWoSo!chkSO.CheckedAsBoolean,=,true)
+	f.Intrinsic.Control.CallSub(UpdateSO)
+f.Intrinsic.Control.EndIf
+f.Intrinsic.UI.Msgbox("Processed Updates","Updating WO & SO")
+f.Intrinsic.Control.CallSub(Unload)
+Program.Sub.CallEmSubs.End
